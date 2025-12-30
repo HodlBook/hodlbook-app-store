@@ -1,0 +1,42 @@
+name: Sync Umbrel App
+
+on:
+  repository_dispatch:
+    types: [hodlbook-release]
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build and run sync-umbrel
+        run: |
+          go build -o sync-umbrel ./scripts
+          ./sync-umbrel
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          VERSION=$(grep 'version:' hodlbook/umbrel-app.yml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          git add hodlbook/
+          git commit -m "chore: sync to v${VERSION}"
+          git push
